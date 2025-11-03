@@ -26,7 +26,7 @@ type Scraper interface {
 	Scrape(ctx context.Context, q chan<- JobOffer) error
 }
 
-func RunScrapers(ctx context.Context, scrapers []Scraper) <-chan JobOffer {
+func RunScrapers(ctx context.Context, scrapers []Scraper) chan JobOffer {
 	out := make(chan JobOffer)
 	var wg sync.WaitGroup
 
