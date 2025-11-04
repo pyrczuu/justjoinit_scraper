@@ -33,6 +33,7 @@ func NewPracujScraper(urls []string) *PracujScraper {
 		//colly.Async(true),
 	)
 
+// #nosec G104 - false positive i guess
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*pracuj.pl*",
 		Parallelism: 2,
