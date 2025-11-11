@@ -3,6 +3,7 @@ package scrapers
 import (
 	"context"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -16,9 +17,9 @@ const (
 	locationSelector      = "span[data-cy='location_pin']"
 	descriptionSelector   = `section#posting-description`                            //concat in code
 	skillsSelector        = `div#posting-requirements, section#posting-nice-to-have` //concat in code
-	salarySectionSelector = `div.salary`
-	salaryAmountSelector  = `div[data-test="text-earningAmount"]`
-	contractTypeSelector  = `span[data-test="text-contractTypeName"]`
+	salarySectionSelector = `div.salary.ng-star-inserted`
+	salaryAmountSelector  = `h4`
+	contractTypeSelector  = `div.paragraph`
 )
 
 type NoFluffScraper struct {
@@ -55,6 +56,9 @@ func (*NoFluffScraper) Source() string {
 func (p *NoFluffScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) error {
 	p.collector.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
+	// regex do wyciągania typu umowy
+	r := regexp.MustCompile(`\(([^)]+)\)`)
+
 	p.collector.OnHTML("html", func(e *colly.HTMLElement) {
 		select {
 		case <-ctx.Done():
@@ -87,22 +91,22 @@ func (p *NoFluffScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) 
 
 		// salary
 
-		e.ForEach(salarySectionSelector, func(_ int, el *colly.HTMLElement) {
-			sectionText := strings.TrimSpace(el.Text)
-			parts := strings.Split(sectionText, "|")
-			if len(parts) != 2 {
-				return
-			}
-			amount := strings.TrimSpace(parts[0])
-			ctype := strings.TrimSpace(parts[1])
+		e.ForEach(contractTypeSelector, func(_ int, el *colly.HTMLElement) {
+			amount := el.ChildText(salaryAmountSelector)
+			amount = strings.ReplaceAll(amount, "&nbsp;", " ")
+			amount = strings.ReplaceAll(amount, "PLN", "zł")
+			amount = strings.TrimSpace(amount)
 
-			if ctype == "umowa o pracę" {
+			sectionText := strings.TrimSpace(el.Text)
+			ctype := r.FindString(sectionText)
+
+			if ctype == "UoP" {
 				job.SalaryEmployment = amount
 			}
-			if ctype == "umowa zlecenie" {
+			if ctype == "UZ" {
 				job.SalaryContract = amount
 			}
-			if ctype == "kontrakt B2B" {
+			if ctype == "B2B" {
 				job.SalaryB2B = amount
 			}
 		})
