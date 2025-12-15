@@ -17,13 +17,11 @@ import (
 
 const (
 	browserDataDir        = `~/.config/google-chrome/Default`
-	source                = "https://nofluffjobs.com/pl"
+	source                = "https://nofluffjobs.com/pl/artificial-intelligence?criteria=category%3Dsys-administrator,business-analyst,architecture,backend,data,ux,devops,erp,embedded,frontend,fullstack,game-dev,mobile,project-manager,security,support,testing,other"
 	minTimeMs             = 3000
 	maxTimeMs             = 4000
 	prefix                = "https://nofluffjobs.com/pl/job/"
 	offerSelector         = "a.posting-list-item"
-	minDelayButton        = 500
-	maxDelayButton        = 1500
 	cookiesButtonSelector = "button#save"                                // zamknięcie cookies
 	loginButtonSelector   = "button[.//inline-icon[@maticon=\"close\"]]" // zamknięcie prośby o zalogowanie
 	loadMoreSelector      = "button[nfjloadmore]"
@@ -122,7 +120,7 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 					return err
 				}
 
-				randomDelay = rand.Intn(maxTimeMs-minTimeMs) + minTimeMs
+				randomDelay = rand.Intn((maxTimeMs+10*i)-(minTimeMs+10*i)) + (minTimeMs + 10*i) // czym więcej kontentu (kolejne iteracje) tym dłużej czekamy (wolniejsza strona)
 				err = chromedp.Sleep(time.Duration(randomDelay) * time.Millisecond).Do(ctx)
 				if err != nil {
 					return err
@@ -132,7 +130,7 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 		}),
 		chromedp.OuterHTML("html", &html),
 	)
-	log.Println(html[:100])
+	//log.Println(html[:100])
 	urls, err = getUrlsFromContent(html)
 	log.Printf("Znaleziono %v linków", len(urls))
 	if err != nil {
