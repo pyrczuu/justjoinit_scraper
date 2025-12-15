@@ -28,8 +28,9 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+ .idea/
+ .vscode/
 
 /database/jobs.db
 out
+~/.config/google-chrome/Default
