@@ -2,22 +2,22 @@ package scrapers
 
 import (
 	"context"
-	"fmt"
-
 	"log"
 	"math/rand"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
-	//"github.com/chromedp/chromedp/kb"
 )
 
 const (
-	browserDataDir        = `~/.config/google-chrome/Default`
-	source                = "https://nofluffjobs.com/pl/artificial-intelligence?criteria=category%3Dsys-administrator,business-analyst,architecture,backend,data,ux,devops,erp,embedded,frontend,fullstack,game-dev,mobile,project-manager,security,support,testing,other"
+	browserDataDir = `~/.config/google-chrome/Default`
+	source         = "https://nofluffjobs.com/pl/artificial-intelligence?criteria=category%3Dsys-administrator,business-analyst,architecture,backend,data,ux,devops,erp,embedded,frontend,fullstack,game-dev,mobile,project-manager,security,support,testing,other"
+	// tylko do testow
+	//source                = "https://nofluffjobs.com/pl/Golang"
 	minTimeMs             = 3000
 	maxTimeMs             = 4000
 	prefix                = "https://nofluffjobs.com/pl/job/"
@@ -77,7 +77,7 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 		chromedp.Navigate(source),
 		chromedp.Evaluate(`delete navigator.__proto__.webdriver`, nil),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		//klika wymagane cookies jeśli jest komunikat
+		//klika wymagane cookies jeśli jest komunikat, blokuje program jeśli ich nie ma :/
 		//chromedp.Click(
 		//	cookiesButtonSelector,
 		//	chromedp.NodeVisible,
@@ -87,35 +87,27 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 		//	chromedp.NodeVisible,
 		//),
 		chromedp.ActionFunc(func(ctx context.Context) error {
-			var prevHeight int64 = -99
-			var currentHeight int64
-
 			log.Println("Strona załadowana. Rozpoczynanie pętli wewnętrznej...")
+			var nodes []*cdp.Node
 
 			for i := 1; ; i++ {
-				err := chromedp.Evaluate(`document.body.scrollHeight`, &currentHeight).Do(ctx)
-				if err != nil {
-					return fmt.Errorf("błąd pobierania wysokości: %w", err)
-				}
-
-				if currentHeight == prevHeight {
-					log.Printf("KONIEC: Wysokość stała (%d).", currentHeight)
-					break
-				}
-
-				prevHeight = currentHeight
 				log.Printf("Iteracja: %v", i)
-				log.Printf("Scrollowanie do: %d", currentHeight)
-
 				randomDelay := rand.Intn(maxTimeMs-minTimeMs) + minTimeMs
-				err = chromedp.Sleep(time.Duration(randomDelay) * time.Millisecond).Do(ctx)
+				err := chromedp.Sleep(time.Duration(randomDelay) * time.Millisecond).Do(ctx)
 				if err != nil {
 					return err
 				}
 
-				err = chromedp.Click(loadMoreSelector,
-					chromedp.NodeVisible,
-				).Do(ctx)
+				err = chromedp.Nodes(loadMoreSelector, &nodes, chromedp.AtLeast(0)).Do(ctx)
+				if err != nil {
+					return err
+				}
+				log.Println(nodes)
+				if len(nodes) == 0 {
+					break
+				}
+
+				err = chromedp.Click(loadMoreSelector).Do(ctx)
 				if err != nil {
 					return err
 				}
@@ -130,7 +122,6 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 		}),
 		chromedp.OuterHTML("html", &html),
 	)
-	//log.Println(html[:100])
 	urls, err = getUrlsFromContent(html)
 	log.Printf("Znaleziono %v linków", len(urls))
 	if err != nil {
