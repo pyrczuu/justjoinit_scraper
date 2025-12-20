@@ -12,11 +12,11 @@ import (
 )
 
 const (
-	titleSelector         = "h1.posting-details-description"
+	titleSelector         = "div.posting-details-description h1"
 	companySelector       = "a#postingCompanyUrl"
-	locationSelector      = "span[data-cy='location_pin']"
-	descriptionSelector   = `section#posting-description`                            //concat in code
-	skillsSelector        = `div#posting-requirements, section#posting-nice-to-have` //concat in code
+	locationSelector      = "span.locations-text span"
+	descriptionSelector   = "#posting-description nfj-read-more"
+	skillsSelector        = "#JobOfferRequirements nfj-read-more"
 	salarySectionSelector = `div.salary.ng-star-inserted`
 	salaryAmountSelector  = `h4`
 	contractTypeSelector  = `div.paragraph`
