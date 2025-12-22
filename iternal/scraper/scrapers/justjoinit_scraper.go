@@ -21,34 +21,32 @@ var proxyList = []string{
 
 // selectors
 const (
-	titleSelector            = "div.posting-details-description h1"
-	companySelector          = "a#postingCompanyUrl"
-	locationSelector         = "span.locations-text span"
-	descriptionSelector      = "#posting-description nfj-read-more"
-	skillsSelector           = "#posting-requirements"
-	salarySectionSelector    = "common-posting-salaries-list div.salary"
-	requirementsSelector     = "#JobOfferRequirements nfj-read-more"
-	responsibilitiesSelector = "postings-tasks ol li"
-	hybridLocationSelector   = "div.popover-body ul li a"
+	titleSelector         = "div[class*=\"MuiStack-root\"] > h1"
+	companySelector       = "h2:has(svg[data-testid=\"ApartmentRoundedIcon\"])"
+	locationSelector      = "div[class*=\"MuiBox-root\"][role=\"button\"]"
+	workTypeSelector      = "MuiStack-root.mui-aa3a55"
+	descriptionSelector   = "h3 + div[class*=\"MuiBox-root\"]"
+	techSelector          = "h4[aria-label]"
+	salarySectionSelector = "div.MuiTypography-h4"
 )
 
 // wait times are random (min,max) in seconds
-type NoFluffScraper struct {
+type JustJoinItScraper struct {
 	minTimeS int
 	maxTimeS int
 	urls     []string
 }
 
-func NewNoFluffScraper(urls []string) *NoFluffScraper {
-	return &NoFluffScraper{
+func NewJustJoinItScraper(urls []string) *JustJoinItScraper {
+	return &JustJoinItScraper{
 		minTimeS: 5,
 		maxTimeS: 10,
 		urls:     urls,
 	}
 }
 
-func (*NoFluffScraper) Source() string {
-	return "https://nofluffjobs.com/pl"
+func (*JustJoinItScraper) Source() string {
+	return "https://justjoin.it/"
 }
 
 func waitForCaptcha() {
@@ -58,7 +56,7 @@ func waitForCaptcha() {
 }
 
 // extracting data from string html with goquer selectors
-func (p *NoFluffScraper) extractDataFromHTML(html string, url string) (scraper.JobOffer, error, bool) {
+func (p *JustJoinItScraper) extractDataFromHTML(html string, url string) (scraper.JobOffer, error, bool) {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		log.Printf("goquery parse error: %v", err)
@@ -88,25 +86,20 @@ func (p *NoFluffScraper) extractDataFromHTML(html string, url string) (scraper.J
 
 	job.Company = strings.TrimSpace(company)
 
-	//first element is usually an andress
 	rawLocation := strings.TrimSpace(doc.Find(locationSelector).Text())
-	// location pin, not always present
-	locationPin := doc.Find("[data-cy='location_pin'] span")
-	if strings.Contains(rawLocation, "Praca zdalna") {
-		job.Location = "Zdalnie"
-	} else if strings.Contains(rawLocation, "Hybrydowo") {
-		job.Location = "Hybrydowo, "
-		// znajduje lokalizacje z pop upa i usuwa słowo "Hybrydowo" które zawsze było przyklejone na końcu bez spacji"
-		location := strings.TrimSpace(doc.Find(hybridLocationSelector).Text())
-		job.Location += location
-	} else {
-		job.Location = ""
+
+	var location string
+	parts := strings.Split(rawLocation, "+")
+	if len(parts) > 1 {
+		location = strings.TrimSpace(parts[1])
 	}
-	if locationPin.Length() > 0 {
-		location := strings.TrimSpace(locationPin.First().Text())
-		location = strings.ReplaceAll(location, "Hybrydowo", "")
-		job.Location += location
+
+	workType := strings.TrimSpace(doc.Find(workTypeSelector).Text())
+	if len(workType) > 0 {
+		location += ", " + workType
 	}
+
+	job.Location = location
 
 	var htmlBuilder strings.Builder
 
@@ -115,57 +108,15 @@ func (p *NoFluffScraper) extractDataFromHTML(html string, url string) (scraper.J
 	if descText != "" {
 		htmlBuilder.WriteString("<p>" + descText + "</p>\n")
 	}
-
-	//requirements
-	doc.Find(requirementsSelector).Each(func(i int, s *goquery.Selection) {
-		heading := strings.TrimSpace(s.Find("h2, h3").First().Text())
-		if heading != "" {
-			htmlBuilder.WriteString("<h2>" + heading + "</h2>\n")
-		}
-
-		htmlBuilder.WriteString("<ul>\n")
-		s.Find("li").Each(func(j int, li *goquery.Selection) {
-			text := strings.TrimSpace(li.Text())
-			if text != "" {
-				htmlBuilder.WriteString("<li>" + text + "</li>\n")
-			}
-		})
-		htmlBuilder.WriteString("</ul>\n")
-	})
-
-	//responsibilities
-	doc.Find(responsibilitiesSelector).Each(func(i int, s *goquery.Selection) {
-		heading := strings.TrimSpace(s.Find("h2, h3").First().Text())
-		if heading != "" {
-			htmlBuilder.WriteString("<h3>" + heading + "</h3>\n")
-		}
-
-		htmlBuilder.WriteString("<ul>\n")
-		s.Find("li").Each(func(j int, li *goquery.Selection) {
-			text := strings.TrimSpace(li.Text())
-			if text != "" {
-				htmlBuilder.WriteString("<li>" + text + "</li>\n")
-			}
-		})
-		htmlBuilder.WriteString("</ul>\n")
-	})
-
 	job.Description = htmlBuilder.String()
 
-	doc.Find(skillsSelector).Each(func(_ int, s *goquery.Selection) {
-		rawText := strings.ReplaceAll(s.Text(), "Obowiązkowe", "")
+	// skills / tech stack
+	var skills []string
+	doc.Find(techSelector).Each(func(_ int, s *goquery.Selection) {
+		name := s.Text()
 
-		lines := strings.Split(rawText, "\n")
-
-		var result []string
-		for _, line := range lines {
-			cleaned := strings.TrimSpace(strings.ReplaceAll(line, "\u00a0", " "))
-
-			if cleaned != "" {
-				result = append(result, cleaned)
-			}
-		}
-		job.Skills = result
+		skills = append(skills, name)
+		job.Skills = skills
 	})
 
 	allSalaries := doc.Find("common-posting-salaries-list div.salary")
@@ -196,7 +147,7 @@ func (p *NoFluffScraper) extractDataFromHTML(html string, url string) (scraper.J
 }
 
 // html chromedp
-func (p *NoFluffScraper) getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
+func (p *JustJoinItScraper) getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
 	var html string
 
 	//chromdp run config
@@ -216,7 +167,7 @@ func (p *NoFluffScraper) getHTMLContent(chromeDpCtx context.Context, url string)
 }
 
 // main func for scraping
-func (p *NoFluffScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) error {
+func (p *JustJoinItScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) error {
 
 	//chromdp config
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],

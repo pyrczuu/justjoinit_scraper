@@ -2,29 +2,30 @@ package scrapers
 
 import (
 	"context"
+	"fmt"
+
 	"log"
 	"math/rand"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/chromedp/kb"
+
+	//"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 )
 
+//browser session data dir
+
 const (
 	browserDataDir = `~/.config/google-chrome/Default`
-	source         = "https://nofluffjobs.com/pl/artificial-intelligence?criteria=category%3Dsys-administrator,business-analyst,architecture,backend,data,ux,devops,erp,embedded,frontend,fullstack,game-dev,mobile,project-manager,security,support,testing,other"
-	// tylko do testow
-	//source                = "https://nofluffjobs.com/pl/Golang"
-	minTimeMs             = 3000
-	maxTimeMs             = 4000
-	prefix                = "https://nofluffjobs.com/pl/job/"
-	offerSelector         = "a.posting-list-item"
-	cookiesButtonSelector = "button#save"                                // zamknięcie cookies
-	loginButtonSelector   = "button[.//inline-icon[@maticon=\"close\"]]" // zamknięcie prośby o zalogowanie
-	loadMoreSelector      = "button[nfjloadmore]"
+	source         = "https://justjoin.it/"
+	minTimeMs      = 3000
+	maxTimeMs      = 4000
+	prefix         = "https://justjoin.it/job-offer/"
+	offerSelector  = "a.offer-card"
 )
 
 func getUrlsFromContent(html string) ([]string, error) {
@@ -46,7 +47,7 @@ func getUrlsFromContent(html string) ([]string, error) {
 	return urls, nil
 }
 
-func ScrollAndRead(parentCtx context.Context) ([]string, error) {
+func scrollAndRead(parentCtx context.Context) ([]string, error) {
 	var urls []string
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -67,8 +68,6 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 
 	log.Println("Uruchamianie przeglądarki...")
 
-	var html string
-
 	err := chromedp.Run(chromeDpCtx,
 
 		chromedp.ActionFunc(func(ctx context.Context) error {
@@ -77,42 +76,51 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 		chromedp.Navigate(source),
 		chromedp.Evaluate(`delete navigator.__proto__.webdriver`, nil),
 		chromedp.WaitVisible(`body`, chromedp.ByQuery),
-		//klika wymagane cookies jeśli jest komunikat, blokuje program jeśli ich nie ma :/
-		//chromedp.Click(
-		//	cookiesButtonSelector,
-		//	chromedp.NodeVisible,
-		//),
-		//chromedp.Click(
-		//	loginButtonSelector,
-		//	chromedp.NodeVisible,
-		//),
+
 		chromedp.ActionFunc(func(ctx context.Context) error {
+			var prevHeight int64 = -99
+			var currentHeight int64
+			var html string
+
 			log.Println("Strona załadowana. Rozpoczynanie pętli wewnętrznej...")
-			var nodes []*cdp.Node
 
 			for i := 1; ; i++ {
-				log.Printf("Iteracja: %v", i)
-				randomDelay := rand.Intn(maxTimeMs-minTimeMs) + minTimeMs
-				err := chromedp.Sleep(time.Duration(randomDelay) * time.Millisecond).Do(ctx)
+				err := chromedp.Evaluate(`document.body.scrollHeight`, &currentHeight).Do(ctx)
 				if err != nil {
-					return err
+					return fmt.Errorf("błąd pobierania wysokości: %w", err)
 				}
 
-				err = chromedp.Nodes(loadMoreSelector, &nodes, chromedp.AtLeast(0)).Do(ctx)
-				if err != nil {
-					return err
-				}
-				log.Println(nodes)
-				if len(nodes) == 0 {
+				if currentHeight == prevHeight {
+					log.Printf("KONIEC: Wysokość stała (%d).", currentHeight)
 					break
 				}
 
-				err = chromedp.Click(loadMoreSelector).Do(ctx)
+				if err := chromedp.OuterHTML("html", &html).Do(ctx); err != nil {
+					log.Printf("Błąd odczytu HTML: %v", err)
+				} else {
+					collected, err := getUrlsFromContent(html)
+					if err == nil {
+						urls = append(urls, collected...)
+						log.Printf("Iteracja %d: Znaleziono %d linków (razem: %d)", i, len(collected), len(urls))
+					}
+				}
+
+				prevHeight = currentHeight
+				log.Printf("Scrollowanie do: %d", currentHeight)
+
+				randomDelay := rand.Intn(maxTimeMs-minTimeMs) + minTimeMs
+				err = chromedp.Sleep(time.Duration(randomDelay) * time.Millisecond).Do(ctx)
 				if err != nil {
 					return err
 				}
 
-				randomDelay = rand.Intn((maxTimeMs+10*i)-(minTimeMs+10*i)) + (minTimeMs + 10*i) // czym więcej kontentu (kolejne iteracje) tym dłużej czekamy (wolniejsza strona)
+				err = chromedp.KeyEvent(kb.End).Do(ctx)
+				//err = chromedp.Evaluate(`window.scrollTo(0, 100)`, nil).Do(ctx)
+				if err != nil {
+					return err
+				}
+
+				randomDelay = rand.Intn(maxTimeMs-minTimeMs) + minTimeMs
 				err = chromedp.Sleep(time.Duration(randomDelay) * time.Millisecond).Do(ctx)
 				if err != nil {
 					return err
@@ -120,13 +128,10 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 			}
 			return nil
 		}),
-		chromedp.OuterHTML("html", &html),
 	)
-	urls, err = getUrlsFromContent(html)
-	log.Printf("Znaleziono %v linków", len(urls))
+
 	if err != nil {
-		log.Println("Błąd wyciąganie url z kontentu")
-		return nil, err
+		return nil, fmt.Errorf("błąd wykonania chromedp: %w", err)
 	}
 
 	return urls, nil
