@@ -28,7 +28,11 @@ func main() {
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
-	urls := []string{}
+	urls := []string{
+		"https://justjoin.it/job-offer/as-inbank-spolka-akcyjna-oddzial-w-polsce-senior-product-engineer-gdansk-java-ad38b4c9",
+		"https://justjoin.it/job-offer/ai-clearing-senior-ai-engineer-cv--warszawa-ai",
+		"https://justjoin.it/job-offer/szkola-w-chmurze-it-helpdesk-warszawa-support",
+		"https://justjoin.it/job-offer/in4ge-sp-z-o-o--junior-java-developer-warszawa-java"}
 	justJoinItScraper := scrapers.NewJustJoinItScraper(urls)
 
 	scrapersList := []scraper.Scraper{justJoinItScraper}

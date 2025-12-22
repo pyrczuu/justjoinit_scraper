@@ -21,13 +21,12 @@ var proxyList = []string{
 
 // selectors
 const (
-	titleSelector         = "div[class*=\"MuiStack-root\"] > h1"
-	companySelector       = "h2:has(svg[data-testid=\"ApartmentRoundedIcon\"])"
-	locationSelector      = "div[class*=\"MuiBox-root\"][role=\"button\"]"
-	workTypeSelector      = "MuiStack-root.mui-aa3a55"
-	descriptionSelector   = "h3 + div[class*=\"MuiBox-root\"]"
-	techSelector          = "h4[aria-label]"
-	salarySectionSelector = "div.MuiTypography-h4"
+	titleSelector       = "div[class*=\"MuiStack-root\"] > h1"
+	companySelector     = "h2:has(svg[data-testid=\"ApartmentRoundedIcon\"])"
+	locationSelector    = "div.MuiBox-root.mui-1jfrpka"
+	workTypeSelector    = "MuiStack-root.mui-aa3a55"
+	descriptionSelector = "h3 + div[class*=\"MuiBox-root\"]"
+	techSelector        = "h4[aria-label]"
 )
 
 // wait times are random (min,max) in seconds
@@ -86,9 +85,9 @@ func (p *JustJoinItScraper) extractDataFromHTML(html string, url string) (scrape
 
 	job.Company = strings.TrimSpace(company)
 
-	rawLocation := strings.TrimSpace(doc.Find(locationSelector).Text())
+	rawLocation := strings.TrimSpace(doc.Find(locationSelector).First().Text())
 
-	var location string
+	location := rawLocation
 	parts := strings.Split(rawLocation, "+")
 	if len(parts) > 1 {
 		location = strings.TrimSpace(parts[1])
@@ -119,28 +118,31 @@ func (p *JustJoinItScraper) extractDataFromHTML(html string, url string) (scrape
 		job.Skills = skills
 	})
 
-	allSalaries := doc.Find("common-posting-salaries-list div.salary")
-	filteredSalaries := allSalaries.Not("[data-cy='JobOffer_SalaryDetails'] div.salary")
+	doc.Find("div[class*='MuiStack-root']").Has("div[class*='MuiTypography-h4']").Each(func(i int, s *goquery.Selection) {
 
-	filteredSalaries.Each(func(_ int, s *goquery.Selection) {
-		rawAmount := s.Find("h4").Text()
-		rawDesc := s.Find(".paragraph").Text()
-		lowerDesc := strings.ToLower(rawDesc)
+		rawAmount := strings.TrimSpace(s.Find("div[class*='MuiTypography-h4']").Text())
 
-		fullInfo := strings.Join(strings.Fields(strings.ReplaceAll(rawAmount+" "+rawDesc, "\u00a0", " ")), " ")
-		fullInfo = strings.ReplaceAll(fullInfo, "oblicz \"na rękę\"", "")
-		fullInfo = strings.ReplaceAll(fullInfo, "oblicz netto", "")
+		lowerDesc := strings.ToLower(s.Find("span[class*='MuiTypography-subtitle4']").Text())
+
+		fullInfo := rawAmount + ", " + lowerDesc
 
 		switch {
-		case strings.Contains(lowerDesc, "uop") || strings.Contains(lowerDesc, "employment"):
+		case strings.Contains(lowerDesc, "permanent") || strings.Contains(lowerDesc, "employment"):
 			job.SalaryEmployment = fullInfo
 
-		case strings.Contains(lowerDesc, "uz") || strings.Contains(lowerDesc, "mandate"):
+		case strings.Contains(lowerDesc, "mandate") || strings.Contains(lowerDesc, "specific-task"):
 			job.SalaryContract = fullInfo
 
 		case strings.Contains(lowerDesc, "b2b"):
 			job.SalaryB2B = fullInfo
+
+		case strings.Contains(lowerDesc, "any"):
+			job.SalaryEmployment = fullInfo
+			job.SalaryContract = fullInfo
+			job.SalaryB2B = fullInfo
+
 		}
+
 	})
 
 	return job, nil, false
