@@ -1,2 +1,3 @@
 # jobscraper
-Kod do zbierania linków znajduje się w iternal/scraper/scrapers/url_scraper.go <br>
+Niektóre selektory mogą być dynamiczne!!!
+NIE obsługuje pop upu cookies

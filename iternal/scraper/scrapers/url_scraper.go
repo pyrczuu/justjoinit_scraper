@@ -11,8 +11,6 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/chromedp/cdproto/emulation"
-	"github.com/chromedp/chromedp/kb"
-
 	//"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 )
@@ -21,7 +19,7 @@ import (
 
 const (
 	browserDataDir = `~/.config/google-chrome/Default`
-	source         = "https://justjoin.it/"
+	source         = "https://justjoin.it/job-offers/all-locations/php"
 	minTimeMs      = 3000
 	maxTimeMs      = 4000
 	prefix         = "https://justjoin.it/job-offer/"
@@ -47,7 +45,7 @@ func getUrlsFromContent(html string) ([]string, error) {
 	return urls, nil
 }
 
-func scrollAndRead(parentCtx context.Context) ([]string, error) {
+func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 	var urls []string
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
@@ -84,6 +82,7 @@ func scrollAndRead(parentCtx context.Context) ([]string, error) {
 
 			log.Println("Strona załadowana. Rozpoczynanie pętli wewnętrznej...")
 
+			sameHeightCount := 0
 			for i := 1; ; i++ {
 				err := chromedp.Evaluate(`document.body.scrollHeight`, &currentHeight).Do(ctx)
 				if err != nil {
@@ -91,7 +90,11 @@ func scrollAndRead(parentCtx context.Context) ([]string, error) {
 				}
 
 				if currentHeight == prevHeight {
-					log.Printf("KONIEC: Wysokość stała (%d).", currentHeight)
+					sameHeightCount++
+				}
+
+				if sameHeightCount > 10 {
+					log.Printf("Koniec strony, wysokość (%d).", currentHeight)
 					break
 				}
 
@@ -114,8 +117,10 @@ func scrollAndRead(parentCtx context.Context) ([]string, error) {
 					return err
 				}
 
-				err = chromedp.KeyEvent(kb.End).Do(ctx)
-				//err = chromedp.Evaluate(`window.scrollTo(0, 100)`, nil).Do(ctx)
+				err = chromedp.Evaluate(`window.scrollBy(0, 1400);`, nil).Do(ctx)
+				if err != nil {
+					return err
+				}
 				if err != nil {
 					return err
 				}
