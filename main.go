@@ -29,10 +29,6 @@ func main() {
 
 	ctx := context.Background()
 
-	//urls, err := scrapers.ScrollAndRead(ctx)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
 	urls, err := scrapers.ScrollAndRead(ctx)
 	if err != nil {
 		log.Fatal(err)
