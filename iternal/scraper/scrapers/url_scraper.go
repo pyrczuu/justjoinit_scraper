@@ -19,7 +19,7 @@ import (
 
 const (
 	browserDataDir = `~/.config/google-chrome/Default`
-	source         = "https://justjoin.it/job-offers/all-locations/php"
+	source         = "https://justjoin.it"
 	minTimeMs      = 3000
 	maxTimeMs      = 4000
 	prefix         = "https://justjoin.it/job-offer/"
