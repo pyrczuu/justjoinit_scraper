@@ -22,7 +22,7 @@ const (
 	source         = "https://justjoin.it"
 	minTimeMs      = 3000
 	maxTimeMs      = 4000
-	prefix         = "https://justjoin.it/job-offer/"
+	prefix         = "https://justjoin.it/"
 	offerSelector  = "a.offer-card"
 )
 
@@ -91,6 +91,8 @@ func ScrollAndRead(parentCtx context.Context) ([]string, error) {
 
 				if currentHeight == prevHeight {
 					sameHeightCount++
+				} else {
+					sameHeightCount = 0
 				}
 
 				if sameHeightCount > 10 {
